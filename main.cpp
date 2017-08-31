@@ -1,13 +1,11 @@
 #include <iostream>
 
-#include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
 #include <unistd.h>
 #include <poll.h>
 
-#include <string>
 
 void error(const char *msg, ...){
     va_list ap;
@@ -21,7 +19,7 @@ void error(const char *msg, ...){
 
 class SocketBase{
 protected:
-    int _sock_fd;
+    int _sock_fd = 0;
     sockaddr_in _serv_addr;
 
 public:
@@ -120,7 +118,7 @@ public:
 
     static void write(int fd, const std::string& str){
         const char* buffer = str.c_str();
-        int i, len = str.length();
+        unsigned long i, len = str.length();
         pollfd apollfd = { .fd = fd, .events = POLLOUT, .revents = 0 };
 
         for(i = 0; i < len;) {
@@ -131,7 +129,7 @@ public:
                 error("Error while writing to socket");
 
             if (retval > 0 && apollfd.revents & POLLOUT) {
-                int n = send(fd, buffer + i, len - i, 0);
+                ssize_t n = send(fd, buffer + i, len - i, 0);
                 if (n < 0)
                     error("Error while writing to socket");
 
@@ -143,8 +141,7 @@ public:
 
 class Server : public SocketBase{
 protected:
-    int _rw_sock_fd;
-    sockaddr_in cli_addr;
+    int _rw_sock_fd = 0;
 
 public:
     Server():_rw_sock_fd(-1){
@@ -160,12 +157,10 @@ public:
 
         listen(_sock_fd, 5);
 
+        sockaddr_in cli_addr;
         unsigned clilen = sizeof(cli_addr);
         _rw_sock_fd = accept(_sock_fd, (sockaddr *) &cli_addr, &clilen);
-        if (_rw_sock_fd < 0)
-            return false;
-
-        return true;
+        return _rw_sock_fd >= 0;
     }
 
     virtual int handle()const{
