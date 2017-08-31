@@ -27,7 +27,8 @@ public:
         std::cout << "SocketBase ctr\n";
     }
 
-    ~SocketBase(){
+    virtual ~SocketBase(){
+        std::cout << "~SocketBase\n";
         close();
     }
 
@@ -68,25 +69,20 @@ public:
         write( handle(), str );
     }
 
-    static int findHandleForRead(int cnt, ...){
-        pollfd apollfd[cnt];
+    template < int size >
+    static int findHandleForRead(const int (&afd)[ size ]){
+        pollfd apollfd[size];
         memset(apollfd, 0, sizeof(apollfd));
+        timeval tv = { .tv_sec = 0, .tv_usec = 100 };
 
-        timeval tv;
-        tv.tv_sec = 0;
-        tv.tv_usec = 100;
-
-        va_list ap;
-        va_start(ap, cnt);
-        for(int i=0; i < cnt; i++){
-            apollfd[i].fd = va_arg(ap, int);
+        for(int i=0; i < size; i++){
+            apollfd[i].fd = afd[i];
             apollfd[i].events = POLLIN;
         }
-        va_end(ap);
 
-        int retval = poll(apollfd, cnt, -1);
+        int retval = poll(apollfd, size, -1);
         if (retval > 0) {
-            for (int i = 0; i < cnt; i++) {
+            for (int i = 0; i < size; i++) {
                 if (apollfd[i].revents & POLLIN)
                     return apollfd[i].fd;
             }
@@ -103,7 +99,7 @@ public:
         pollfd apollfd = { .fd = fd, .events = POLLIN, .revents = 0 };
 
         do{
-            int n =  fd == ::stdin->_file ? ::read( fd, buffer, BUFF_SIZE - 1 ) : recv(fd, buffer, BUFF_SIZE - 1, 0);
+            ssize_t n =  fd == ::stdin->_file ? ::read( fd, buffer, BUFF_SIZE - 1 ) : recv(fd, buffer, BUFF_SIZE - 1, 0);
             if (n < 0) error("Error while reading from socket");
 
             buffer[n] = 0;
@@ -148,6 +144,11 @@ public:
         std::cout << "Server ctr\n";
     }
 
+    virtual ~Server(){
+        std::cout << "~Server\n";
+        close();
+    }
+
     virtual bool init(int portno){
         SocketBase::init(portno);
 
@@ -169,7 +170,7 @@ public:
 
     virtual void close(){
         SocketBase::close();
-//        printf("Server::close %d\n", _rw_sock_fd);
+        printf("Server::close %d\n", _rw_sock_fd);
         SocketBase::close( _rw_sock_fd );
     }
 };
@@ -179,6 +180,10 @@ protected:
     hostent *server;
 
 public:
+
+    ~Client(){
+        std::cout << "~Client\n";
+    }
 
     virtual bool init(const char* servername, int portno){
         SocketBase::init( portno );
@@ -190,7 +195,7 @@ public:
               (char *)&_serv_addr.sin_addr.s_addr,
               server->h_length);
 
-        return (connect(_sock_fd, const_cast<const sockaddr *>( reinterpret_cast<sockaddr *>(&_serv_addr) ), sizeof(_serv_addr))  == 0);
+        return (connect(_sock_fd, const_cast<const sockaddr *>( reinterpret_cast<sockaddr *>(&_serv_addr) ), sizeof(_serv_addr)) == 0);
     }
 };
 
@@ -216,8 +221,9 @@ int main(int argc, char** argv) {
 
     std::cout << "Start chat:\n";
 
+    int afd[] = { ::stdin->_file, socket->handle() };
     for(bool quit = false; !quit ;){
-        int fd = SocketBase::findHandleForRead(2, ::stdin->_file, socket->handle());
+        int fd = SocketBase::findHandleForRead( afd );
         if (fd < 0) continue;
 
         std::string str = SocketBase::read( fd );
