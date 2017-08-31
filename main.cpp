@@ -5,11 +5,9 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <unistd.h>
+#include <poll.h>
 
 #include <string>
-#include <stdio.h>
-
-//using namespace std;
 
 void error(const char *msg, ...){
     va_list ap;
@@ -35,14 +33,14 @@ public:
         close();
     }
 
-    virtual void init(int portno){
+    virtual bool init(int portno){
         _sock_fd = socket(AF_INET, SOCK_STREAM, 0);
-        if (_sock_fd < 0)
-            error("ERROR opening socket");
+        if (_sock_fd < 0) return false;
 
         memset(&_serv_addr, 0, sizeof(_serv_addr));
         _serv_addr.sin_family = AF_INET;
         _serv_addr.sin_port = htons(portno);
+        return true;
     }
 
     static void close(int& fd){
@@ -60,30 +58,62 @@ public:
         }
     }
 
+    virtual int handle()const{
+        return _sock_fd;
+    }
+
+    std::string read(){
+        return read( handle() );
+    }
+
+    void write(const std::string& str){
+        write( handle(), str );
+    }
+
+    static int findHandleForRead(int cnt, ...){
+        pollfd apollfd[cnt];
+        memset(apollfd, 0, sizeof(apollfd));
+
+        timeval tv;
+        tv.tv_sec = 0;
+        tv.tv_usec = 100;
+
+        va_list ap;
+        va_start(ap, cnt);
+        for(int i=0; i < cnt; i++){
+            apollfd[i].fd = va_arg(ap, int);
+            apollfd[i].events = POLLIN;
+        }
+        va_end(ap);
+
+        int retval = poll(apollfd, cnt, -1);
+        if (retval > 0) {
+            for (int i = 0; i < cnt; i++) {
+                if (apollfd[i].revents & POLLIN)
+                    return apollfd[i].fd;
+            }
+        }
+
+        return -1;
+    }
+
     static std::string read(int fd){
         std::string res;
         const int BUFF_SIZE = 256;
         char buffer[BUFF_SIZE];
         int retval;
-        fd_set rfds;
-
-        struct timeval tv;
-        tv.tv_sec = 0;
-        tv.tv_usec = 0;
+        pollfd apollfd = { .fd = fd, .events = POLLIN, .revents = 0 };
 
         do{
-            int n =  fd == ::stdin->_file ? ::read( fd, buffer, BUFF_SIZE-1 ) : recv(fd, buffer, BUFF_SIZE-1, 0);
+            int n =  fd == ::stdin->_file ? ::read( fd, buffer, BUFF_SIZE - 1 ) : recv(fd, buffer, BUFF_SIZE - 1, 0);
             if (n < 0) error("Error while reading from socket");
-            buffer[n] = 0;
 
+            buffer[n] = 0;
             res += buffer;
 
-            FD_ZERO(&rfds);
-            FD_SET(fd, &rfds);
-
-            retval = select(1, &rfds, NULL, NULL, &tv);
-
-        }while( retval > 0 && FD_ISSET(fd, &rfds) );
+            apollfd.revents = 0;
+            retval = poll(&apollfd, 1, 0);
+        }while( retval > 0 && apollfd.revents & POLLIN);
 
         return res;
     }
@@ -91,13 +121,22 @@ public:
     static void write(int fd, const std::string& str){
         const char* buffer = str.c_str();
         int i, len = str.length();
+        pollfd apollfd = { .fd = fd, .events = POLLOUT, .revents = 0 };
 
         for(i = 0; i < len;) {
-            int n = send(fd, buffer + i, len - i, 0);
-            if (n < 0)
+            apollfd.revents = 0;
+            int retval = poll(&apollfd, 1, 0);
+
+            if (retval < 0)
                 error("Error while writing to socket");
 
-            i += n;
+            if (retval > 0 && apollfd.revents & POLLOUT) {
+                int n = send(fd, buffer + i, len - i, 0);
+                if (n < 0)
+                    error("Error while writing to socket");
+
+                i += n;
+            }
         }
     }
 };
@@ -112,31 +151,30 @@ public:
         std::cout << "Server ctr\n";
     }
 
-    virtual void init(int portno){
+    virtual bool init(int portno){
         SocketBase::init(portno);
 
         _serv_addr.sin_addr.s_addr = INADDR_ANY;
         if ( ::bind(_sock_fd, (struct sockaddr *) &_serv_addr, sizeof(_serv_addr)) < 0)
-            error("ERROR on binding");
+            return false;
 
         listen(_sock_fd, 5);
 
         unsigned clilen = sizeof(cli_addr);
         _rw_sock_fd = accept(_sock_fd, (sockaddr *) &cli_addr, &clilen);
         if (_rw_sock_fd < 0)
-            error("ERROR on accept");
+            return false;
+
+        return true;
     }
 
-    void doIt(){
-        std::string s = read( _rw_sock_fd );
-        printf("Here is the message:\n%s\n", s.c_str());
-
-        write( _rw_sock_fd, "I got your message" );
+    virtual int handle()const{
+        return _rw_sock_fd;
     }
 
     virtual void close(){
         SocketBase::close();
-        printf("Server::close %d\n", _rw_sock_fd);
+//        printf("Server::close %d\n", _rw_sock_fd);
         SocketBase::close( _rw_sock_fd );
     }
 };
@@ -147,43 +185,55 @@ protected:
 
 public:
 
-    virtual void init(char* servername, int portno){
+    virtual bool init(const char* servername, int portno){
         SocketBase::init( portno );
 
         server = gethostbyname(servername);
-        if (server == NULL)
-            error( "ERROR, no such host: %s", servername );
+        if (server == NULL) return false;
 
         bcopy((char *)server->h_addr,
               (char *)&_serv_addr.sin_addr.s_addr,
               server->h_length);
 
-        if (connect(_sock_fd, const_cast<const sockaddr *>( reinterpret_cast<sockaddr *>(&_serv_addr) ), sizeof(_serv_addr)) < 0)
-            error("ERROR connecting");
+        return (connect(_sock_fd, const_cast<const sockaddr *>( reinterpret_cast<sockaddr *>(&_serv_addr) ), sizeof(_serv_addr))  == 0);
     }
-
-    void doIt(){
-        std::cout << "Please enter the message:\n";
-        std::string s = read( ::stdin->_file );
-        write( _sock_fd, s );
-
-        s = read(_sock_fd);
-        std::cout << s;
-    }
-
 };
 
-int main(int argc, char** argv) {
-    if (argc == 3 && *argv[1] == 's'){
-        Server server;
-        server.init( atoi(argv[2]) );
-        server.doIt();
-    }else if (argc == 4 && *argv[1] == 'c'){
-        Client client;
-        client.init( argv[2], atoi(argv[3]) );
-        client.doIt();
-    }else std::cout << "Usage:\nchat s port\nchat c host port";
 
+int main(int argc, char** argv) {
+    static const int PORT = 8080;
+
+    SocketBase* socket;
+    Server server;
+    Client client;
+    if (client.init( "localhost", PORT )) {
+        socket = &client;
+    }else{
+
+        if (!server.init( PORT ))
+            error("Can't open server");
+
+        if (!client.init( "localhost", PORT ))
+            error( "Can't connect client" );
+
+        socket = &server;
+    }
+
+    std::cout << "Start chat:\n";
+
+    for(bool quit = false; !quit ;){
+        int fd = SocketBase::findHandleForRead(2, ::stdin->_file, socket->handle());
+        if (fd < 0) continue;
+
+        std::string str = SocketBase::read( fd );
+        quit = str == "quit\n";
+
+        if (fd == socket->handle()){
+            std::cout << str;
+        }else{
+            socket->write( str );
+        }
+    };
 
     return 0;
 }
