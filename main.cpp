@@ -17,6 +17,14 @@ void error(const char *msg, ...){
     exit(1);
 }
 
+void tr( const char* msg){
+//     std::cout << msg << std::endl;
+}
+
+void tr( const char* msg, int i){
+//     std::cout << msg << i << std::endl;
+}
+
 class SocketBase{
 protected:
     int _sock_fd = 0;
@@ -24,11 +32,11 @@ protected:
 
 public:
     SocketBase():_sock_fd( -1 ){
-        std::cout << "SocketBase ctr\n";
+        tr("SocketBase ctr");
     }
 
     virtual ~SocketBase(){
-        std::cout << "~SocketBase\n";
+        tr("~SocketBase");
         close();
     }
 
@@ -43,15 +51,17 @@ public:
     }
 
     static void close(int& fd){
+        tr("SocketBase::close ", fd);
         if (fd != -1) {
+            shutdown( fd, SHUT_WR );
+            shutdown( fd, SHUT_RD );
             if (::close(fd))
-                error("Error while shutdown socket");
+                error("Error while close socket");
             fd = -1;
         }
     }
 
     virtual void close(){
-        printf("SocketBase::close %d\n", _sock_fd);
         if (_sock_fd != -1) {
             close(_sock_fd);
         }
@@ -120,7 +130,6 @@ public:
         for(i = 0; i < len;) {
             apollfd.revents = 0;
             int retval = poll(&apollfd, 1, 0);
-
             if (retval < 0)
                 error("Error while writing to socket");
 
@@ -141,25 +150,31 @@ protected:
 
 public:
     Server():_rw_sock_fd(-1){
-        std::cout << "Server ctr\n";
+        tr("Server ctr");
     }
 
     virtual ~Server(){
-        std::cout << "~Server\n";
+        tr("~Server");
         close();
     }
 
     virtual bool init(int portno){
         SocketBase::init(portno);
+        int iSetOption = 1;
+        if (setsockopt(_sock_fd, SOL_SOCKET, SO_REUSEADDR, &iSetOption, sizeof(int)) == -1)
+            error("Error on reuse");
 
+        std::cout << "Bind...\n";
         _serv_addr.sin_addr.s_addr = INADDR_ANY;
-        if ( ::bind(_sock_fd, (struct sockaddr *) &_serv_addr, sizeof(_serv_addr)) < 0)
+        if ( ::bind(_sock_fd, (sockaddr *) &_serv_addr, sizeof(_serv_addr)) < 0)
             return false;
 
+        std::cout << "Listen...\n";
         listen(_sock_fd, 5);
 
         sockaddr_in cli_addr;
         unsigned clilen = sizeof(cli_addr);
+        std::cout << "Accept...\n";
         _rw_sock_fd = accept(_sock_fd, (sockaddr *) &cli_addr, &clilen);
         return _rw_sock_fd >= 0;
     }
@@ -169,56 +184,49 @@ public:
     }
 
     virtual void close(){
-        SocketBase::close();
-        printf("Server::close %d\n", _rw_sock_fd);
         SocketBase::close( _rw_sock_fd );
     }
 };
 
 class Client : public SocketBase{
 protected:
-    hostent *server;
-
 public:
+    Client(){
+        tr("Client ctr");
+    }
 
     ~Client(){
-        std::cout << "~Client\n";
+        tr("~Client");
     }
 
     virtual bool init(const char* servername, int portno){
         SocketBase::init( portno );
 
-        server = gethostbyname(servername);
+        hostent * server = gethostbyname(servername);
         if (server == NULL) return false;
 
-        bcopy((char *)server->h_addr,
-              (char *)&_serv_addr.sin_addr.s_addr,
-              server->h_length);
-
+        memcpy( &_serv_addr.sin_addr.s_addr, server->h_addr, server->h_length);
         return (connect(_sock_fd, const_cast<const sockaddr *>( reinterpret_cast<sockaddr *>(&_serv_addr) ), sizeof(_serv_addr)) == 0);
     }
 };
 
-
-int main(int argc, char** argv) {
+SocketBase* findSocket() throw(){
     static const int PORT = 8080;
+    Client* client = new Client();
+    if (client->init("localhost", PORT)) return client;
+    delete client;
 
-    SocketBase* socket;
-    Server server;
-    Client client;
-    if (client.init( "localhost", PORT )) {
-        socket = &client;
-    }else{
-
-        if (!server.init( PORT ))
-            error("Can't open server");
-
-        if (!client.init( "localhost", PORT ))
-            error( "Can't connect client" );
-
-        socket = &server;
+    Server* server = new Server();
+    if (!server->init( PORT )){
+        delete server;
+        error("Can't open server");
     }
 
+    return server;
+}
+
+void chat(){
+    SocketBase* socket = findSocket();
     std::cout << "Start chat:\n";
 
     int afd[] = { ::stdin->_file, socket->handle() };
@@ -233,8 +241,15 @@ int main(int argc, char** argv) {
             std::cout << str;
         }else{
             socket->write( str );
+            if (quit)
+                usleep( 100 );
         }
-    };
+    }
+    delete socket;
+}
+
+int main(int argc, char** argv) {
+    chat();
 
     return 0;
 }
