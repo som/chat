@@ -28,7 +28,6 @@ void tr( const char* msg, int i){
 class SocketBase{
 protected:
     int _sock_fd = 0;
-    sockaddr_in _serv_addr;
 
 public:
     SocketBase():_sock_fd( -1 ){
@@ -42,12 +41,7 @@ public:
 
     virtual bool init(int portno){
         _sock_fd = socket(AF_INET, SOCK_STREAM, 0);
-        if (_sock_fd < 0) return false;
-
-        memset(&_serv_addr, 0, sizeof(_serv_addr));
-        _serv_addr.sin_family = AF_INET;
-        _serv_addr.sin_port = htons(portno);
-        return true;
+        return _sock_fd >= 0;
     }
 
     static void close(int& fd){
@@ -62,9 +56,8 @@ public:
     }
 
     virtual void close(){
-        if (_sock_fd != -1) {
+        if (_sock_fd != -1)
             close(_sock_fd);
-        }
     }
 
     virtual int handle()const{
@@ -147,6 +140,7 @@ public:
 class Server : public SocketBase{
 protected:
     int _rw_sock_fd = 0;
+    sockaddr_in _serv_addr;
 
 public:
     Server():_rw_sock_fd(-1){
@@ -159,14 +153,17 @@ public:
     }
 
     virtual bool init(int portno){
-        SocketBase::init(portno);
+        if (!SocketBase::init(portno)) return false;
         int iSetOption = 1;
         if (setsockopt(_sock_fd, SOL_SOCKET, SO_REUSEADDR, &iSetOption, sizeof(int)) == -1)
             error("Error on reuse");
 
         std::cout << "Bind...\n";
+        memset(&_serv_addr, 0, sizeof(_serv_addr));
+        _serv_addr.sin_family = AF_INET;
+        _serv_addr.sin_port = htons(portno);
         _serv_addr.sin_addr.s_addr = INADDR_ANY;
-        if ( ::bind(_sock_fd, (sockaddr *) &_serv_addr, sizeof(_serv_addr)) < 0)
+        if ( ::bind(_sock_fd, reinterpret_cast<sockaddr*>(&_serv_addr), sizeof(_serv_addr)) < 0)
             return false;
 
         std::cout << "Listen...\n";
@@ -175,7 +172,7 @@ public:
         sockaddr_in cli_addr;
         unsigned clilen = sizeof(cli_addr);
         std::cout << "Accept...\n";
-        _rw_sock_fd = accept(_sock_fd, (sockaddr *) &cli_addr, &clilen);
+        _rw_sock_fd = accept(_sock_fd, reinterpret_cast<sockaddr*>(&cli_addr), &clilen);
         return _rw_sock_fd >= 0;
     }
 
@@ -184,7 +181,8 @@ public:
     }
 
     virtual void close(){
-        SocketBase::close( _rw_sock_fd );
+        if (_rw_sock_fd != -1)
+            SocketBase::close( _rw_sock_fd );
     }
 };
 
@@ -200,13 +198,26 @@ public:
     }
 
     virtual bool init(const char* servername, int portno){
-        SocketBase::init( portno );
+        if (!SocketBase::init(portno)) return false;
 
-        hostent * server = gethostbyname(servername);
-        if (server == NULL) return false;
+        addrinfo hints;
+        memset(&hints, 0, sizeof(hints));
+        hints.ai_family = AF_INET;
+        hints.ai_socktype = SOCK_STREAM;
 
-        memcpy( &_serv_addr.sin_addr.s_addr, server->h_addr, server->h_length);
-        return (connect(_sock_fd, const_cast<const sockaddr *>( reinterpret_cast<sockaddr *>(&_serv_addr) ), sizeof(_serv_addr)) == 0);
+        addrinfo *result;
+        int r = getaddrinfo(servername, std::to_string( portno ).c_str(), &hints, &result);
+        if (r != 0)
+            return false;
+
+        addrinfo *rp = result;
+        do{
+            r = connect(_sock_fd, rp->ai_addr, rp->ai_addrlen);
+            rp = rp->ai_next;
+        }while(rp && r != 0);
+        freeaddrinfo(result);
+
+        return (r == 0);
     }
 };
 
