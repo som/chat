@@ -39,7 +39,7 @@ public:
         close();
     }
 
-    virtual bool init(int portno){
+    virtual bool init(){
         _sock_fd = socket(AF_INET, SOCK_STREAM, 0);
         return _sock_fd >= 0;
     }
@@ -140,7 +140,6 @@ public:
 class Server : public SocketBase{
 protected:
     int _rw_sock_fd = 0;
-    sockaddr_in _serv_addr;
 
 public:
     Server():_rw_sock_fd(-1){
@@ -152,18 +151,19 @@ public:
         close();
     }
 
-    virtual bool init(int portno){
-        if (!SocketBase::init(portno)) return false;
-        int iSetOption = 1;
-        if (setsockopt(_sock_fd, SOL_SOCKET, SO_REUSEADDR, &iSetOption, sizeof(int)) == -1)
+    bool init(int portno){
+        if (!SocketBase::init()) return false;
+        int option = 1;
+        if (setsockopt(_sock_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(int)) == -1)
             error("Error on reuse");
 
         std::cout << "Bind...\n";
-        memset(&_serv_addr, 0, sizeof(_serv_addr));
-        _serv_addr.sin_family = AF_INET;
-        _serv_addr.sin_port = htons(portno);
-        _serv_addr.sin_addr.s_addr = INADDR_ANY;
-        if ( ::bind(_sock_fd, reinterpret_cast<sockaddr*>(&_serv_addr), sizeof(_serv_addr)) < 0)
+        sockaddr_in serv_addr;
+        memset(&serv_addr, 0, sizeof(serv_addr));
+        serv_addr.sin_family = AF_INET;
+        serv_addr.sin_port = htons(portno);
+        serv_addr.sin_addr.s_addr = INADDR_ANY;
+        if ( bind(_sock_fd, reinterpret_cast<sockaddr*>(&serv_addr), sizeof(serv_addr)) < 0 )
             return false;
 
         std::cout << "Listen...\n";
@@ -198,7 +198,7 @@ public:
     }
 
     virtual bool init(const char* servername, int portno){
-        if (!SocketBase::init(portno)) return false;
+        if (!SocketBase::init()) return false;
 
         addrinfo hints;
         memset(&hints, 0, sizeof(hints));
