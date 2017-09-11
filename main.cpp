@@ -1,4 +1,5 @@
 #include <iostream>
+#include <memory>
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -239,7 +240,7 @@ SocketBase* findSocket() throw(){
 }
 
 void chat(){
-    SocketBase* socket = findSocket();
+    std::auto_ptr<SocketBase> socket( findSocket() );
     std::cout << "Start chat:\n";
 
     int afd[] = { ::stdin->_file, socket->handle() };
@@ -258,7 +259,6 @@ void chat(){
                 usleep( 100 );
         }
     }
-    delete socket;
 }
 
 int main(int argc, char** argv) {
