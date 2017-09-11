@@ -34,10 +34,7 @@ public:
         tr("SocketBase ctr");
     }
 
-    virtual ~SocketBase(){
-        tr("~SocketBase");
-        close();
-    }
+    virtual ~SocketBase() = 0;
 
     virtual bool init(){
         _sock_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -136,6 +133,11 @@ public:
         }
     }
 };
+
+SocketBase::~SocketBase() {
+    std::cout << "~SocketBase\n";
+    close();
+}
 
 class Server : public SocketBase{
 protected:
