@@ -19,11 +19,11 @@ void error(const char *msg, ...){
 }
 
 void tr( const char* msg){
-//     std::cout << msg << std::endl;
+     std::cout << msg << std::endl;
 }
 
 void tr( const char* msg, int i){
-//     std::cout << msg << i << std::endl;
+     std::cout << msg << i << std::endl;
 }
 
 class SocketBase{
@@ -114,7 +114,7 @@ public:
     }
 
     static void write(int fd, const std::string& str){
-        const char* buffer = str.c_str();
+        const auto buffer = str.c_str();
         unsigned long i, len = str.length();
         pollfd apollfd = { .fd = fd, .events = POLLOUT, .revents = 0 };
 
@@ -196,7 +196,7 @@ public:
         tr("Client ctr");
     }
 
-    ~Client(){
+    virtual ~Client(){
         tr("~Client");
     }
 
@@ -226,21 +226,21 @@ public:
 
 SocketBase* findSocket() throw(){
     static const int PORT = 8080;
-    Client* client = new Client();
-    if (client->init("localhost", PORT)) return client;
-    delete client;
+    {
+        std::unique_ptr<Client> client( new Client() );
+        if (client->init("localhost", PORT)) return client.release();
+    }
 
-    Server* server = new Server();
+    std::unique_ptr<Server> server( new Server() );
     if (!server->init( PORT )){
-        delete server;
         error("Can't open server");
     }
 
-    return server;
+    return server.release();
 }
 
 void chat(){
-    std::auto_ptr<SocketBase> socket( findSocket() );
+    std::unique_ptr<SocketBase> socket( findSocket() );
     std::cout << "Start chat:\n";
 
     int afd[] = { ::stdin->_file, socket->handle() };
