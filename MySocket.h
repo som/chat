@@ -11,7 +11,7 @@
 #include "helper.h"
 #include "ISocket.h"
 
-class SocketBase: public ISocketBase{
+class SocketBase{
 protected:
     int _sock_fd = 0;
 
@@ -129,6 +129,9 @@ public:
         return SocketBase::handle();
     }
 };
+
+
+std::unique_ptr<ISocketBase> makeMySocket() throw();
 
 
 #endif //CHAT_MYSOCKET_H

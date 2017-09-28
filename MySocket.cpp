@@ -87,3 +87,17 @@ bool Server::init(int portno){
     return _rw_sock_fd >= 0;
 }
 
+/////////
+std::unique_ptr<ISocketBase> makeMySocket() throw(){
+    static const int PORT = 8080;
+
+    std::unique_ptr<ISocketBase> res(static_cast<ISocketBase*>( new Client() ) );
+    if (static_cast<Client*>( res.get() )->init("localhost", PORT)) return res;
+
+    res.reset( new Server() );
+    if (static_cast<Server*>( res.get() )->init( PORT ) == false){
+        error("Can't open server");
+    }
+
+    return res;
+}

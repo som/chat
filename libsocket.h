@@ -17,9 +17,7 @@ protected:
     std::unique_ptr<libsocket::inet_stream> _client;
 
 public:
-    LSServer(int portno){
-        init( portno );
-    }
+    LSServer(){}
     virtual bool init(int portno);
     virtual std::string read();
     virtual void write(const std::string& str);
@@ -41,4 +39,6 @@ public:
         return _client.getfd();
     }
 };
+
+std::unique_ptr<ISocketBase> makeLibSocket() throw();
 #endif //CHAT_LIBSOCKET_H

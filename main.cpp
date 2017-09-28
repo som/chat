@@ -1,7 +1,6 @@
 
 #include "libsocket.h"
 #include "MySocket.h"
-#include <iostream>
 
 template < int size >
 static int findHandleForRead(const int (&afd)[ size ]){
@@ -25,22 +24,9 @@ static int findHandleForRead(const int (&afd)[ size ]){
     return -1;
 }
 
-std::unique_ptr<SocketBase> findSocket() throw(){
-    static const int PORT = 8080;
-
-    std::unique_ptr<SocketBase> res( new Client() );
-    if (static_cast<Client*>( res.get() )->init("localhost", PORT)) return res;
-
-    res.reset( new Server() );
-    if (static_cast<Server*>( res.get() )->init( PORT ) == false){
-        error("Can't open server");
-    }
-
-    return res;
-}
 
 void chat(){
-    std::unique_ptr<SocketBase> socket( findSocket() );
+    std::unique_ptr<ISocketBase> socket( makeLibSocket() );
     std::cout << "Start chat:\n";
 
     int afd[] = { ::stdin->_file, socket->handle() };
@@ -63,11 +49,6 @@ void chat(){
 
 int main(int argc, char** argv) {
     chat();
-//    if (argc == 2) {
-//        std::cout << "arg:" << argv[1] << std::endl;
-////        if (*argv[1] == 's')
-////        else
-//    }
 
     return 0;
 }
