@@ -9,6 +9,7 @@
 
 class ISocketBase{
 public:
+    virtual ~ISocketBase(){}
     virtual std::string read() = 0;
     virtual void write(const std::string& str) = 0;
     virtual int handle() const = 0;
