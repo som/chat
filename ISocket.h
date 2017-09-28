@@ -15,12 +15,12 @@ public:
 };
 
 
-class ISocketServer: public ISocketBase{
+class ISocketServer: public virtual ISocketBase{
 public:
     virtual bool init(int portno) = 0;
 };
 
-class ISocketClient: public ISocketBase{
+class ISocketClient: public virtual ISocketBase{
 public:
     virtual bool init(const char* servername, int portno) = 0;
 };

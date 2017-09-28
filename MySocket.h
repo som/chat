@@ -11,7 +11,7 @@
 #include "helper.h"
 #include "ISocket.h"
 
-class SocketBase{
+class SocketBase : public virtual ISocketBase{
 protected:
     int _sock_fd = 0;
 
@@ -50,7 +50,7 @@ public:
     static void write(int fd, const std::string& str);
 };
 
-class Server : public SocketBase, public ISocketServer{
+class Server : public ISocketServer, public virtual SocketBase{
 protected:
     int _rw_sock_fd = 0;
 
@@ -84,7 +84,7 @@ public:
     }
 };
 
-class Client : public SocketBase, public ISocketClient{
+class Client : public ISocketClient, public virtual SocketBase{
 protected:
 public:
     Client(){

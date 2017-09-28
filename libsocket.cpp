@@ -10,7 +10,7 @@
 
 //// LSServer
  bool LSServer::init(int portno){
-    _srv.setup("localhost", std::to_string(portno).c_str(), LIBSOCKET_IPv6);
+    _srv.setup("localhost", std::to_string(portno).c_str(), LIBSOCKET_IPv4);
     _client = _srv.accept2();
     return true;
 }
@@ -28,7 +28,7 @@ void LSServer::write(const std::string& str){
 //// LSClient
 bool LSClient::init(const char* servername, int portno){
     try {
-        _client.connect(servername, std::to_string(portno).c_str(), LIBSOCKET_IPv6);
+        _client.connect(servername, std::to_string(portno).c_str(), LIBSOCKET_IPv4);
         return true;
     }
     catch(...){
@@ -53,10 +53,10 @@ std::unique_ptr<ISocketBase> makeLibSocket() throw(){
     static const int PORT = 8080;
 
     std::unique_ptr<ISocketBase> res( new LSClient() );
-    if (static_cast<LSClient*>( res.get() )->init("localhost", PORT)) return res;
+    if (dynamic_cast<LSClient*>( res.get() )->init("localhost", PORT)) return res;
 
     res.reset( new LSServer() );
-    if (static_cast<LSServer*>( res.get() )->init( PORT ) == false){
+    if (dynamic_cast<LSServer*>( res.get() )->init( PORT ) == false){
         error("Can't open server");
     }
 

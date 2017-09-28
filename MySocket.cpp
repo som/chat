@@ -91,11 +91,11 @@ bool Server::init(int portno){
 std::unique_ptr<ISocketBase> makeMySocket() throw(){
     static const int PORT = 8080;
 
-    std::unique_ptr<ISocketBase> res(static_cast<ISocketBase*>( new Client() ) );
-    if (static_cast<Client*>( res.get() )->init("localhost", PORT)) return res;
+    std::unique_ptr<ISocketBase> res( new Client() );
+    if (dynamic_cast<Client*>( res.get() )->init("localhost", PORT)) return res;
 
     res.reset( new Server() );
-    if (static_cast<Server*>( res.get() )->init( PORT ) == false){
+    if (dynamic_cast<Server*>( res.get() )->init( PORT ) == false){
         error("Can't open server");
     }
 

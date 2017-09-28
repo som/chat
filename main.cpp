@@ -25,8 +25,8 @@ static int findHandleForRead(const int (&afd)[ size ]){
 }
 
 
-void chat(){
-    std::unique_ptr<ISocketBase> socket( makeLibSocket() );
+void chat(char type){
+    std::unique_ptr<ISocketBase> socket( type == 'm' ? makeMySocket() : makeLibSocket() );
     std::cout << "Start chat:\n";
 
     int afd[] = { ::stdin->_file, socket->handle() };
@@ -48,7 +48,7 @@ void chat(){
 }
 
 int main(int argc, char** argv) {
-    chat();
+    chat( argc == 2 ? *argv[1] : 0 );
 
     return 0;
 }
