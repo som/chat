@@ -5,13 +5,10 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
-#include <iostream>
-#include <memory>
 
 #include "helper.h"
-#include "ISocket.h"
 
-class SocketBase : public virtual ISocketBase{
+class SocketBase{
 protected:
     int _sock_fd = 0;
 
@@ -50,7 +47,7 @@ public:
     static void write(int fd, const std::string& str);
 };
 
-class Server : public ISocketServer, public virtual SocketBase{
+class Server : public virtual SocketBase{
 protected:
     int _rw_sock_fd = 0;
 
@@ -84,7 +81,7 @@ public:
     }
 };
 
-class Client : public ISocketClient, public virtual SocketBase{
+class Client : public virtual SocketBase{
 protected:
 public:
     Client(){
@@ -130,8 +127,6 @@ public:
     }
 };
 
-
-std::unique_ptr<ISocketBase> makeMySocket() throw();
 
 
 #endif //CHAT_MYSOCKET_H

@@ -1,7 +1,3 @@
-//
-// Created by som on 27/09/2017.
-//
-
 #ifndef CHAT_HELPER_H
 #define CHAT_HELPER_H
 
