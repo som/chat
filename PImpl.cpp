@@ -65,7 +65,7 @@ class PImpl::Socket{
         try {
             std::unique_ptr<libsocket::inet_stream> libclient( new libsocket::inet_stream() );
             libclient->connect(HOST, std::to_string(PORT).c_str(), LIBSOCKET_IPv4);
-            _libclient.reset( libclient.release() );
+            _libclient.swap( libclient );
             return true;
         }
         catch(...){
@@ -81,6 +81,12 @@ class PImpl::Socket{
         _libsrv.setup(HOST, std::to_string(PORT).c_str(), LIBSOCKET_IPv4);
         _libclient = _libsrv.accept2();
         return true;
+    }
+
+    ~Socket(){
+        tr("~Socket");
+        if (_libclient)
+            _libclient.reset( nullptr );
     }
 };
 
